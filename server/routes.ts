@@ -7,6 +7,13 @@ import { z } from "zod";
 import { insertUserSchema, insertPlaylistSchema } from "@shared/schema";
 import MemoryStore from "memorystore";
 
+// Extend the express-session types to include our custom properties
+declare module 'express-session' {
+  interface SessionData {
+    userId?: number;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup session middleware
   const MemoryStoreSession = MemoryStore(session);
@@ -27,17 +34,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Spotify OAuth endpoints
   app.get("/api/auth/login", (req, res) => {
     const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const redirectUri = process.env.REDIRECT_URI || "http://localhost:5000/callback";
+    const redirectUri = process.env.REDIRECT_URI || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/callback`;
     const scope = "user-read-private user-read-email playlist-modify-public playlist-modify-private user-top-read user-read-recently-played";
     
+    console.log(`Using redirect URI for login: ${redirectUri}`); // Log the redirectUri for debugging
+    
     res.redirect(`https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}`);
+  });
+
+  // Handle the callback route from Spotify
+  app.get("/callback", async (req, res) => {
+    // Redirect to the actual API endpoint
+    res.redirect(`/api/auth/callback${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`);
   });
 
   app.get("/api/auth/callback", async (req, res) => {
     const code = req.query.code as string;
     const clientId = process.env.SPOTIFY_CLIENT_ID;
     const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-    const redirectUri = process.env.REDIRECT_URI || "http://localhost:5000/callback";
+    const redirectUri = process.env.REDIRECT_URI || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/callback`;
+    
+    console.log(`Callback received with code: ${code ? 'Code present' : 'No code'}`);
+    console.log(`Using redirect URI for token exchange: ${redirectUri}`);
 
     if (!code) {
       return res.status(400).json({ message: "Authorization code not provided" });
@@ -95,7 +113,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Set the user in the session
-      req.session.userId = user.id;
+      if (user && user.id) {
+        req.session.userId = user.id;
+        console.log(`User authenticated successfully. User ID: ${user.id}`);
+      } else {
+        console.error('Authentication successful but user object is invalid');
+        return res.status(500).json({ message: "Authentication failed - invalid user data" });
+      }
       
       // Redirect back to the frontend
       res.redirect('/');

@@ -35,10 +35,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/login", (req, res) => {
     const clientId = process.env.SPOTIFY_CLIENT_ID;
     
-    // Determine the redirect URI based on the environment
-    const host = req.headers.host || 'localhost:5000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const redirectUri = process.env.REDIRECT_URI || `${protocol}://${host}/callback`;
+    // Use Replit's environment variables to build the redirect URI
+    let redirectUri;
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      // When running on Replit
+      redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/callback`;
+    } else {
+      // Local development fallback
+      redirectUri = 'http://localhost:5000/callback';
+    }
     
     const scope = "user-read-private user-read-email playlist-modify-public playlist-modify-private user-top-read user-read-recently-played";
     
@@ -58,10 +63,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const clientId = process.env.SPOTIFY_CLIENT_ID;
     const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
     
-    // Determine the redirect URI based on the environment
-    const host = req.headers.host || 'localhost:5000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const redirectUri = process.env.REDIRECT_URI || `${protocol}://${host}/callback`;
+    // Use Replit's environment variables to build the redirect URI (must match login URI exactly)
+    let redirectUri;
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      // When running on Replit
+      redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/callback`;
+    } else {
+      // Local development fallback
+      redirectUri = 'http://localhost:5000/callback';
+    }
     
     console.log(`Callback received with code: ${code ? 'Code present' : 'No code'}`);
     console.log(`Using redirect URI for token exchange: ${redirectUri}`);

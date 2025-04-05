@@ -133,11 +133,12 @@ export default function SearchPage() {
             <>
               <TabsContent value="all" className="space-y-8">
                 {/* Tracks Section */}
-                {searchResults.tracks?.items?.length > 0 && (
+                {searchResults.tracks?.items && searchResults.tracks.items.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h2 className="text-xl font-semibold">Tracks</h2>
-                      {searchResults.tracks.total > searchResults.tracks.items.length && (
+                      {searchResults.tracks.total && searchResults.tracks.items && 
+                        searchResults.tracks.total > searchResults.tracks.items.length && (
                         <Button 
                           variant="link" 
                           onClick={() => setActiveTab('tracks')}
@@ -177,11 +178,12 @@ export default function SearchPage() {
                 )}
                 
                 {/* Artists Section */}
-                {searchResults.artists?.items?.length > 0 && (
+                {searchResults.artists?.items && searchResults.artists.items.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h2 className="text-xl font-semibold">Artists</h2>
-                      {searchResults.artists.total > searchResults.artists.items.length && (
+                      {searchResults.artists.total && searchResults.artists.items && 
+                        searchResults.artists.total > searchResults.artists.items.length && (
                         <Button 
                           variant="link" 
                           onClick={() => setActiveTab('artists')}
@@ -215,11 +217,12 @@ export default function SearchPage() {
                 )}
                 
                 {/* Albums Section */}
-                {searchResults.albums?.items?.length > 0 && (
+                {searchResults.albums?.items && searchResults.albums.items.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h2 className="text-xl font-semibold">Albums</h2>
-                      {searchResults.albums.total > searchResults.albums.items.length && (
+                      {searchResults.albums.total && searchResults.albums.items && 
+                        searchResults.albums.total > searchResults.albums.items.length && (
                         <Button 
                           variant="link" 
                           onClick={() => setActiveTab('albums')}
@@ -252,7 +255,7 @@ export default function SearchPage() {
               </TabsContent>
               
               <TabsContent value="tracks">
-                {searchResults.tracks?.items?.length > 0 ? (
+                {searchResults.tracks?.items && searchResults.tracks.items.length > 0 ? (
                   <ScrollArea className="h-[700px]">
                     <div className="space-y-2">
                       {searchResults.tracks.items.map((track) => (
@@ -290,7 +293,7 @@ export default function SearchPage() {
               </TabsContent>
               
               <TabsContent value="artists">
-                {searchResults.artists?.items?.length > 0 ? (
+                {searchResults.artists?.items && searchResults.artists.items.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {searchResults.artists.items.map((artist) => (
                       <Link key={artist.id} href={`/artist/${artist.id}`}>
@@ -331,7 +334,7 @@ export default function SearchPage() {
               </TabsContent>
               
               <TabsContent value="albums">
-                {searchResults.albums?.items?.length > 0 ? (
+                {searchResults.albums?.items && searchResults.albums.items.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {searchResults.albums.items.map((album) => (
                       <Card key={album.id} className="h-full hover:shadow-md cursor-pointer transition-all overflow-hidden">

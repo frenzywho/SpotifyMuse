@@ -475,7 +475,7 @@ export default function GenrePlaylistGenerator() {
                   <Music className="mr-2 h-5 w-5" /> 
                   Recommended Tracks
                 </span>
-                {recommendations?.tracks?.length > 0 && (
+                {recommendations?.tracks && recommendations.tracks.length > 0 && (
                   <Badge variant="outline">
                     {recommendations.tracks.length} tracks
                   </Badge>

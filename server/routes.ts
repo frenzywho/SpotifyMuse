@@ -285,6 +285,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get album tracks
+  app.get("/api/spotify/albums/:id/tracks", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const albumId = req.params.id;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/albums/${albumId}/tracks?limit=${limit}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Get album tracks error:', error);
+      res.status(500).json({ message: "Failed to get album tracks" });
+    }
+  });
+  
   // Get user's played tracks for an artist (for the discoverography feature)
   app.get("/api/spotify/me/played-tracks/artist/:id", async (req, res) => {
     if (!req.session.userId) {

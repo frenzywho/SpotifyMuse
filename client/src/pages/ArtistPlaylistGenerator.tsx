@@ -453,7 +453,7 @@ export default function ArtistPlaylistGenerator() {
                   <Disc3 className="mr-2 h-5 w-5" /> 
                   Recommended Tracks
                 </span>
-                {recommendations?.tracks?.length > 0 && (
+                {recommendations?.tracks && recommendations.tracks.length > 0 && (
                   <Badge variant="outline">
                     {recommendations.tracks.length} tracks
                   </Badge>
@@ -470,7 +470,7 @@ export default function ArtistPlaylistGenerator() {
                 <div className="flex justify-center items-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : !recommendations?.tracks?.length ? (
+              ) : !recommendations?.tracks || !recommendations.tracks.length ? (
                 <div className="text-center py-12">
                   <UserCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">No tracks yet</h3>
@@ -481,7 +481,7 @@ export default function ArtistPlaylistGenerator() {
               ) : (
                 <ScrollArea className="h-[700px]">
                   <div className="space-y-2">
-                    {recommendations.tracks.map((track, index) => (
+                    {recommendations.tracks && recommendations.tracks.map((track, index) => (
                       <div 
                         key={track.id} 
                         className="flex items-center p-3 rounded-md hover:bg-accent"

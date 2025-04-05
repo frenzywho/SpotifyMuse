@@ -520,7 +520,7 @@ export default function MoodPlaylistGenerator() {
                   <Disc3 className="mr-2 h-5 w-5" /> 
                   {selectedMood ? `${selectedMood.name} Tracks` : 'Recommended Tracks'}
                 </span>
-                {recommendations?.tracks?.length > 0 && (
+                {recommendations?.tracks && recommendations.tracks.length > 0 && (
                   <Badge variant="outline">
                     {recommendations.tracks.length} tracks
                   </Badge>

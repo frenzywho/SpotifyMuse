@@ -55,6 +55,9 @@ export default function ArtistDetailPage() {
   const [, navigate] = useLocation();
   const artistId = params?.id;
   const [selectedTab, setSelectedTab] = useState('discoverography');
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [albumTracks, setAlbumTracks] = useState<any[]>([]);
+  const [isLoadingAlbumTracks, setIsLoadingAlbumTracks] = useState(false);
 
   // Fetch artist details
   const { data: artist, isLoading: artistLoading } = useQuery<ArtistDetails>({
@@ -115,6 +118,20 @@ export default function ArtistDetailPage() {
       isPlayed: playedTrackIds.includes(track.id)
     }));
   }, [topTracks?.tracks, playedTrackIds]);
+  
+  // Calculate played/unplayed track statistics
+  const trackStats = React.useMemo(() => {
+    if (!discoverographyTracks.length) return { played: 0, unplayed: 0, total: 0 };
+    
+    const played = discoverographyTracks.filter(track => track.isPlayed).length;
+    const total = discoverographyTracks.length;
+    
+    return {
+      played,
+      unplayed: total - played,
+      total
+    };
+  }, [discoverographyTracks]);
 
   // Create a playlist with this artist's tracks
   const handleCreatePlaylist = () => {
@@ -136,6 +153,37 @@ export default function ArtistDetailPage() {
       return `${(num / 1000).toFixed(1)}K`;
     }
     return num.toString();
+  };
+
+  // Function to load album tracks
+  const fetchAlbumTracks = async (albumId: string) => {
+    if (!albumId) return;
+    
+    setIsLoadingAlbumTracks(true);
+    try {
+      const response = await apiRequest('GET', `/api/spotify/albums/${albumId}/tracks`);
+      const data = await response.json();
+      setAlbumTracks(data.items || []);
+    } catch (error) {
+      console.error('Error fetching album tracks:', error);
+      setAlbumTracks([]);
+    } finally {
+      setIsLoadingAlbumTracks(false);
+    }
+  };
+
+  // Handle album selection
+  const handleAlbumClick = (album: Album) => {
+    // If already selected, close it
+    if (selectedAlbum && selectedAlbum.id === album.id) {
+      setSelectedAlbum(null);
+      setAlbumTracks([]);
+      return;
+    }
+    
+    // Otherwise, fetch tracks for the album
+    setSelectedAlbum(album);
+    fetchAlbumTracks(album.id);
   };
 
   const isLoading = artistLoading || tracksLoading || albumsLoading || relatedLoading || playedLoading;
@@ -221,16 +269,21 @@ export default function ArtistDetailPage() {
         
         {/* Discoverography Tab */}
         <TabsContent value="discoverography" className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold">Discoverography</h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold">Discoverography</h2>
+              <p className="text-sm text-muted-foreground">
+                You've listened to {trackStats.played} out of {trackStats.total} tracks ({Math.round((trackStats.played/trackStats.total)*100) || 0}%)
+              </p>
+            </div>
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                <span>Played</span>
+                <span>Played ({trackStats.played})</span>
               </div>
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-gray-500 rounded-full mr-2"></div>
-                <span>Not played yet</span>
+                <span>Not played yet ({trackStats.unplayed})</span>
               </div>
             </div>
           </div>
@@ -273,34 +326,123 @@ export default function ArtistDetailPage() {
         <TabsContent value="albums">
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold">Albums & Singles</h2>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-              {albums?.items?.map(album => (
-                <Card key={album.id} className="hover:shadow-md transition-shadow overflow-hidden">
-                  <div className="aspect-square overflow-hidden">
+
+            {selectedAlbum ? (
+              <div className="bg-black/10 rounded-lg p-6 mb-8">
+                <div className="flex flex-col md:flex-row gap-6 mb-6">
+                  <div className="w-48 h-48 flex-shrink-0">
                     <img
-                      src={album.images[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
-                      alt={album.name}
-                      className="h-full w-full object-cover"
+                      src={selectedAlbum.images[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                      alt={selectedAlbum.name}
+                      className="w-full h-full object-cover rounded-md"
                     />
                   </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold truncate">{album.name}</h3>
-                    <div className="flex justify-between items-center mt-1">
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {album.album_type}
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-2">{selectedAlbum.name}</h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Badge variant="outline" className="capitalize">
+                        {selectedAlbum.album_type}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {album.release_date?.slice(0, 4)}
+                      <span className="text-sm text-muted-foreground">
+                        Released: {selectedAlbum.release_date}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {album.total_tracks} tracks
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary">
+                        {selectedAlbum.total_tracks} tracks
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="ml-auto"
+                        onClick={() => setSelectedAlbum(null)}
+                      >
+                        Back to Albums
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {isLoadingAlbumTracks ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[400px] rounded-md border">
+                    <div className="p-4">
+                      {albumTracks.map((track, index) => (
+                        <div 
+                          key={track.id}
+                          className="flex items-center py-3 px-2 border-b border-gray-800 last:border-0 hover:bg-white/5 rounded-sm transition-colors"
+                        >
+                          <div className="w-8 text-center text-muted-foreground mr-4">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium truncate">{track.name}</h4>
+                            <div className="flex items-center gap-2">
+                              {track.explicit && (
+                                <Badge variant="outline" className="text-xs h-4 px-1 py-0">E</Badge>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {formatDuration(track.duration_ms)}
+                              </p>
+                            </div>
+                          </div>
+                          {playedTrackIds && (
+                            <div className="ml-4">
+                              {playedTrackIds.includes(track.id) ? (
+                                <Check className="h-5 w-5 text-green-500" />
+                              ) : (
+                                <div className="h-5 w-5" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      
+                      {albumTracks.length === 0 && !isLoadingAlbumTracks && (
+                        <div className="py-8 text-center text-muted-foreground">
+                          No tracks available for this album
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                {albums?.items?.map(album => (
+                  <Card 
+                    key={album.id} 
+                    className="hover:shadow-md transition-shadow overflow-hidden cursor-pointer"
+                    onClick={() => handleAlbumClick(album)}
+                  >
+                    <div className="aspect-square overflow-hidden">
+                      <img
+                        src={album.images[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                        alt={album.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold truncate">{album.name}</h3>
+                      <div className="flex justify-between items-center mt-1">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {album.album_type}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {album.release_date?.slice(0, 4)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {album.total_tracks} tracks
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
         

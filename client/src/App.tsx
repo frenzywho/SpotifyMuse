@@ -13,6 +13,10 @@ import MoodCreator from "@/pages/MoodCreator";
 import MustListen from "@/pages/MustListen";
 import ReplayGenerator from "@/pages/ReplayGenerator";
 import NotFound from "@/pages/not-found";
+import GenrePlaylistGenerator from "@/pages/GenrePlaylistGenerator";
+import MoodPlaylistGenerator from "@/pages/MoodPlaylistGenerator";
+import SearchPage from "@/pages/SearchPage";
+import ArtistDetailPage from "@/pages/ArtistDetailPage";
 
 function Router() {
   return (
@@ -22,9 +26,15 @@ function Router() {
       <Route path="/callback" component={Callback} />
       <Route path="/genre-explorer" component={GenreExplorer} />
       <Route path="/artist-explorer" component={ArtistExplorer} />
+      <Route path="/create-playlist/genre" component={GenrePlaylistGenerator} />
+      <Route path="/create-playlist/mood" component={MoodPlaylistGenerator} />
       <Route path="/mood-creator" component={MoodCreator} />
       <Route path="/must-listen" component={MustListen} />
       <Route path="/replay-generator" component={ReplayGenerator} />
+      <Route path="/search" component={SearchPage} />
+      <Route path="/artist/:id">
+        {({ id }) => <ArtistDetailPage key={id} />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

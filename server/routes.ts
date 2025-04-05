@@ -186,6 +186,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Artist details endpoints
+  app.get("/api/spotify/artists/:id", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const artistId = req.params.id;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/artists/${artistId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Get artist error:', error);
+      res.status(500).json({ message: "Failed to get artist details" });
+    }
+  });
+  
+  app.get("/api/spotify/artists/:id/top-tracks", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const artistId = req.params.id;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Get artist top tracks error:', error);
+      res.status(500).json({ message: "Failed to get artist top tracks" });
+    }
+  });
+  
+  app.get("/api/spotify/artists/:id/albums", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const artistId = req.params.id;
+    const includeGroups = req.query.include_groups as string || 'album,single';
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=${includeGroups}&limit=${limit}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Get artist albums error:', error);
+      res.status(500).json({ message: "Failed to get artist albums" });
+    }
+  });
+  
+  app.get("/api/spotify/artists/:id/related-artists", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const artistId = req.params.id;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/artists/${artistId}/related-artists`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Get related artists error:', error);
+      res.status(500).json({ message: "Failed to get related artists" });
+    }
+  });
+  
+  // Get user's played tracks for an artist (for the discoverography feature)
+  app.get("/api/spotify/me/played-tracks/artist/:id", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const artistId = req.params.id;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      // Get user's recently played tracks
+      const recentResponse = await axios.get(
+        "https://api.spotify.com/v1/me/player/recently-played?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      // Get user's top tracks
+      const topResponse = await axios.get(
+        "https://api.spotify.com/v1/me/top/tracks?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      // Filter tracks by the specified artist
+      const recentTracks = recentResponse.data.items
+        .filter((item: any) => item.track.artists.some((artist: any) => artist.id === artistId))
+        .map((item: any) => item.track.id);
+      
+      const topTracks = topResponse.data.items
+        .filter((track: any) => track.artists.some((artist: any) => artist.id === artistId))
+        .map((track: any) => track.id);
+      
+      // Combine all tracks (removing duplicates)
+      const playedTrackIds = [...new Set([...recentTracks, ...topTracks])];
+      
+      res.json(playedTrackIds);
+    } catch (error) {
+      console.error('Get played tracks error:', error);
+      res.status(500).json({ message: "Failed to get played tracks" });
+    }
+  });
+  
   // Refresh tokens when needed
   async function refreshAccessToken(userId: number) {
     const user = await storage.getUser(userId);
@@ -397,7 +542,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Artist-based recommendations
+  // Comprehensive search functionality
+  app.get("/api/spotify/search", async (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const query = req.query.q as string;
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+    
+    const type = req.query.type as string || 'track,artist,album';
+    const limit = parseInt(req.query.limit as string) || 20;
+    
+    try {
+      const accessToken = await refreshAccessToken(req.session.userId);
+      
+      const response = await axios.get(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      res.json(response.data);
+    } catch (error) {
+      console.error('Search error:', error);
+      res.status(500).json({ message: "Failed to search Spotify" });
+    }
+  });
+  
+  // Legacy endpoint - Artist search (kept for backward compatibility)
   app.get("/api/spotify/search/artists", async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });

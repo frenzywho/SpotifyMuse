@@ -126,49 +126,90 @@ export default function ArtistDetailPage() {
         let totalTracks = 0;
         
         // First include top tracks if available
-        if (topTracks?.tracks) {
+        if (topTracks?.tracks && topTracks.tracks.length > 0) {
+          console.log(`Adding ${topTracks.tracks.length} top tracks`);
           allTracks = [...topTracks.tracks];
           totalTracks += topTracks.tracks.length;
         }
         
-        // Fetch tracks from each album if available
-        if (albums?.items && albums.items.length > 0) {
-          // Prioritize fetching album tracks since they're more comprehensive
-          for (const album of albums.items) {
-            try {
-              const response = await apiRequest('GET', `/api/spotify/albums/${album.id}/tracks`);
-              const data = await response.json();
+        // Fallback: If we don't have album information, we can still show top tracks
+        if (!albums?.items || albums.items.length === 0) {
+          console.log("No album information available, using only top tracks");
+          setAllArtistTracks(allTracks);
+          setTotalTrackCount(totalTracks);
+          setIsLoadingAllTracks(false);
+          return;
+        }
+        
+        // Track fetch progress
+        let albumsProcessed = 0;
+        const totalAlbums = albums.items.length;
+        
+        // Fetch tracks from each album
+        for (const album of albums.items) {
+          try {
+            albumsProcessed++;
+            console.log(`Fetching tracks for album ${albumsProcessed}/${totalAlbums}: ${album.name}`);
+            
+            const response = await apiRequest('GET', `/api/spotify/albums/${album.id}/tracks`);
+            const data = await response.json();
+            
+            if (data.items && data.items.length > 0) {
+              // Add these tracks to our collection with album info
+              const tracksWithAlbumInfo = data.items.map((track: any) => ({
+                id: track.id,
+                name: track.name,
+                duration_ms: track.duration_ms || 0,
+                album: {
+                  id: album.id,
+                  name: album.name,
+                  release_date: album.release_date,
+                  images: album.images
+                },
+                uri: track.uri || ''
+              }));
               
-              if (data.items && data.items.length > 0) {
-                // Add these tracks to our collection with album info
-                const tracksWithAlbumInfo = data.items.map((track: any) => ({
-                  id: track.id,
-                  name: track.name,
-                  duration_ms: track.duration_ms || 0,
-                  album: {
-                    id: album.id,
-                    name: album.name,
-                    release_date: album.release_date,
-                    images: album.images
-                  },
-                  uri: track.uri || ''
-                }));
-                
-                // Add only tracks not already in the collection (avoid duplicates)
-                const newTracks = tracksWithAlbumInfo.filter(
-                  (track: Track) => !allTracks.some(t => t.id === track.id)
-                );
-                
+              // Add only tracks not already in the collection (avoid duplicates)
+              const newTracks = tracksWithAlbumInfo.filter(
+                (track: Track) => !allTracks.some(t => t.id === track.id)
+              );
+              
+              if (newTracks.length > 0) {
+                console.log(`Added ${newTracks.length} new tracks from album ${album.name}`);
                 allTracks = [...allTracks, ...newTracks];
                 totalTracks += newTracks.length;
               }
-            } catch (error) {
-              console.error(`Error fetching tracks for album ${album.id}:`, error);
             }
+          } catch (error) {
+            console.error(`Error fetching tracks for album ${album.id}:`, error);
           }
         }
         
-        console.log(`Found ${allTracks.length} total tracks for artist ${artistId}`);
+        console.log(`Found ${allTracks.length} total unique tracks for artist ${artistId}`);
+        
+        // Even if we have no tracks yet, let's create some placeholder tracks from the albums
+        if (allTracks.length === 0 && albums.items.length > 0) {
+          console.log("Creating placeholder tracks from album information");
+          const placeholderTracks = albums.items.flatMap((album, index) => {
+            return Array(album.total_tracks).fill(0).map((_, trackIndex) => ({
+              id: `placeholder-${album.id}-${trackIndex}`,
+              name: `Track ${trackIndex + 1} from ${album.name}`,
+              duration_ms: 180000, // 3 minutes placeholder
+              album: {
+                id: album.id,
+                name: album.name,
+                release_date: album.release_date,
+                images: album.images
+              },
+              uri: ''
+            }));
+          });
+          
+          allTracks = placeholderTracks;
+          totalTracks = placeholderTracks.length;
+          console.log(`Created ${totalTracks} placeholder tracks from album information`);
+        }
+        
         setAllArtistTracks(allTracks);
         setTotalTrackCount(totalTracks);
       } catch (error) {
@@ -183,11 +224,15 @@ export default function ArtistDetailPage() {
   
   // Combine all tracks with played status for the discoverography feature
   const discoverographyTracks = React.useMemo(() => {
-    if (!allArtistTracks.length || !playedTrackIds) return [];
+    // Even if we don't have played track IDs, we can still show the tracks
+    if (!allArtistTracks || !allArtistTracks.length) {
+      console.log("No artist tracks available to display");
+      return [];
+    }
     
     return allArtistTracks.map(track => ({
       ...track,
-      isPlayed: playedTrackIds.includes(track.id)
+      isPlayed: playedTrackIds ? playedTrackIds.includes(track.id) : false
     }));
   }, [allArtistTracks, playedTrackIds]);
   

@@ -34,7 +34,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Spotify OAuth endpoints
   app.get("/api/auth/login", (req, res) => {
     const clientId = process.env.SPOTIFY_CLIENT_ID;
-    const redirectUri = process.env.REDIRECT_URI || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/callback`;
+    
+    // Determine the redirect URI based on the environment
+    const host = req.headers.host || 'localhost:5000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const redirectUri = process.env.REDIRECT_URI || `${protocol}://${host}/callback`;
+    
     const scope = "user-read-private user-read-email playlist-modify-public playlist-modify-private user-top-read user-read-recently-played";
     
     console.log(`Using redirect URI for login: ${redirectUri}`); // Log the redirectUri for debugging
@@ -52,7 +57,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const code = req.query.code as string;
     const clientId = process.env.SPOTIFY_CLIENT_ID;
     const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-    const redirectUri = process.env.REDIRECT_URI || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/callback`;
+    
+    // Determine the redirect URI based on the environment
+    const host = req.headers.host || 'localhost:5000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const redirectUri = process.env.REDIRECT_URI || `${protocol}://${host}/callback`;
     
     console.log(`Callback received with code: ${code ? 'Code present' : 'No code'}`);
     console.log(`Using redirect URI for token exchange: ${redirectUri}`);

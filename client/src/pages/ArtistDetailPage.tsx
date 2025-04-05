@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { apiRequest } from '@/lib/queryClient';
 
 interface ArtistDetails {
@@ -109,15 +110,80 @@ export default function ArtistDetailPage() {
     enabled: !!artistId,
   });
 
-  // Combine top tracks with played status for the discoverography feature
-  const discoverographyTracks = React.useMemo(() => {
-    if (!topTracks?.tracks || !playedTrackIds) return [];
+  // Store all album tracks for the complete discography
+  const [allArtistTracks, setAllArtistTracks] = useState<Track[]>([]);
+  const [isLoadingAllTracks, setIsLoadingAllTracks] = useState(false);
+  const [totalTrackCount, setTotalTrackCount] = useState(0);
+  
+  // Fetch all tracks from all albums for the discoverography feature
+  useEffect(() => {
+    const fetchAllAlbumTracks = async () => {
+      if (!artistId || !albums?.items) return;
+      
+      setIsLoadingAllTracks(true);
+      try {
+        let allTracks: Track[] = [];
+        let totalTracks = 0;
+        
+        // First include top tracks
+        if (topTracks?.tracks) {
+          allTracks = [...topTracks.tracks];
+          totalTracks += topTracks.tracks.length;
+        }
+        
+        // Fetch tracks from each album
+        for (const album of albums.items) {
+          try {
+            const response = await apiRequest('GET', `/api/spotify/albums/${album.id}/tracks`);
+            const data = await response.json();
+            
+            // Add these tracks to our collection with album info
+            const tracksWithAlbumInfo = data.items.map((track: any) => ({
+              id: track.id,
+              name: track.name,
+              duration_ms: track.duration_ms,
+              album: {
+                id: album.id,
+                name: album.name,
+                release_date: album.release_date,
+                images: album.images
+              },
+              uri: track.uri
+            }));
+            
+            // Add only tracks not already in the collection (avoid duplicates)
+            const newTracks = tracksWithAlbumInfo.filter(
+              (track: Track) => !allTracks.some(t => t.id === track.id)
+            );
+            
+            allTracks = [...allTracks, ...newTracks];
+            totalTracks += newTracks.length;
+          } catch (error) {
+            console.error(`Error fetching tracks for album ${album.id}:`, error);
+          }
+        }
+        
+        setAllArtistTracks(allTracks);
+        setTotalTrackCount(totalTracks);
+      } catch (error) {
+        console.error('Error fetching all album tracks:', error);
+      } finally {
+        setIsLoadingAllTracks(false);
+      }
+    };
     
-    return topTracks.tracks.map(track => ({
+    fetchAllAlbumTracks();
+  }, [artistId, albums?.items, topTracks?.tracks]);
+  
+  // Combine all tracks with played status for the discoverography feature
+  const discoverographyTracks = React.useMemo(() => {
+    if (!allArtistTracks.length || !playedTrackIds) return [];
+    
+    return allArtistTracks.map(track => ({
       ...track,
       isPlayed: playedTrackIds.includes(track.id)
     }));
-  }, [topTracks?.tracks, playedTrackIds]);
+  }, [allArtistTracks, playedTrackIds]);
   
   // Calculate played/unplayed track statistics
   const trackStats = React.useMemo(() => {
@@ -273,7 +339,7 @@ export default function ArtistDetailPage() {
             <div>
               <h2 className="text-2xl font-semibold">Discoverography</h2>
               <p className="text-sm text-muted-foreground">
-                You've listened to {trackStats.played} out of {trackStats.total} tracks ({Math.round((trackStats.played/trackStats.total)*100) || 0}%)
+                Track your listening journey through {artist.name}'s complete catalog
               </p>
             </div>
             <div className="flex items-center gap-6 text-sm">
@@ -288,38 +354,81 @@ export default function ArtistDetailPage() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 gap-2">
-            {discoverographyTracks.map((track) => (
-              <div 
-                key={track.id} 
-                className={`flex items-center p-4 rounded-md ${track.isPlayed ? 'bg-green-500/10 hover:bg-green-500/20' : 'bg-gray-500/10 hover:bg-gray-500/20'} transition-colors`}
-              >
-                <div className="mr-4">
-                  {track.isPlayed ? (
-                    <Check className="h-6 w-6 text-green-500" />
-                  ) : (
-                    <Disc3 className="h-6 w-6 text-gray-500" />
-                  )}
+          {isLoadingAllTracks ? (
+            <div className="py-12 flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading complete discography...</p>
+            </div>
+          ) : discoverographyTracks.length === 0 ? (
+            <div className="py-12 text-center">
+              <Music className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-xl font-semibold mb-2">No tracks found</h3>
+              <p className="text-muted-foreground">
+                We couldn't find any tracks for this artist. Try refreshing or check back later.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Stats Card */}
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg p-6 shadow-md">
+                <h3 className="text-xl font-semibold mb-4">Your Listening Stats</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
+                  <div className="bg-black/20 p-4 rounded-md text-center">
+                    <p className="text-3xl font-bold">{trackStats.total}</p>
+                    <p className="text-sm text-muted-foreground">Total Tracks</p>
+                  </div>
+                  <div className="bg-black/20 p-4 rounded-md text-center">
+                    <p className="text-3xl font-bold text-green-500">{trackStats.played}</p>
+                    <p className="text-sm text-muted-foreground">Played</p>
+                  </div>
+                  <div className="bg-black/20 p-4 rounded-md text-center">
+                    <p className="text-3xl font-bold">{Math.round((trackStats.played/trackStats.total)*100) || 0}%</p>
+                    <p className="text-sm text-muted-foreground">Completion</p>
+                  </div>
                 </div>
-                <div className="h-10 w-10 mr-4">
-                  <img
-                    src={track.album.images[0]?.url || 'https://via.placeholder.com/40'}
-                    alt={track.album.name}
-                    className="h-full w-full object-cover rounded-sm"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium truncate">{track.name}</h4>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {track.album.name} • {track.album.release_date?.slice(0, 4) || ''}
-                  </p>
-                </div>
-                <div className="text-sm text-muted-foreground ml-4">
-                  {formatDuration(track.duration_ms)}
-                </div>
+                <Progress value={(trackStats.played/trackStats.total)*100 || 0} className="h-2" />
               </div>
-            ))}
-          </div>
+              
+              {/* Tracks List */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">All Tracks</h3>
+                <ScrollArea className="h-[600px] rounded-md border">
+                  <div className="p-4 space-y-2">
+                    {discoverographyTracks.map((track) => (
+                      <div 
+                        key={track.id} 
+                        className={`flex items-center p-4 rounded-md ${track.isPlayed ? 'bg-green-500/10 hover:bg-green-500/20' : 'bg-gray-500/10 hover:bg-gray-500/20'} transition-colors`}
+                      >
+                        <div className="mr-4">
+                          {track.isPlayed ? (
+                            <Check className="h-6 w-6 text-green-500" />
+                          ) : (
+                            <Disc3 className="h-6 w-6 text-gray-500" />
+                          )}
+                        </div>
+                        <div className="h-10 w-10 mr-4">
+                          <img
+                            src={track.album.images[0]?.url || 'https://via.placeholder.com/40'}
+                            alt={track.album.name}
+                            className="h-full w-full object-cover rounded-sm"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">{track.name}</h4>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {track.album.name} • {track.album.release_date?.slice(0, 4) || ''}
+                          </p>
+                        </div>
+                        <div className="text-sm text-muted-foreground ml-4">
+                          {formatDuration(track.duration_ms)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          )}
         </TabsContent>
         
         {/* Albums Tab */}

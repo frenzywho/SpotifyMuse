@@ -338,6 +338,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       );
       
+      // Get saved albums to check for tracks by this artist
+      const savedAlbumsResponse = await axios.get(
+        "https://api.spotify.com/v1/me/albums?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
+      // Get user's saved tracks
+      const savedTracksResponse = await axios.get(
+        "https://api.spotify.com/v1/me/tracks?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      
       // Filter tracks by the specified artist
       const recentTracks = recentResponse.data.items
         .filter((item: any) => item.track.artists.some((artist: any) => artist.id === artistId))
@@ -346,9 +362,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const topTracks = topResponse.data.items
         .filter((track: any) => track.artists.some((artist: any) => artist.id === artistId))
         .map((track: any) => track.id);
+        
+      const savedTracks = savedTracksResponse.data.items
+        .filter((item: any) => item.track.artists.some((artist: any) => artist.id === artistId))
+        .map((item: any) => item.track.id);
+      
+      // Also check saved albums for tracks by this artist
+      const savedAlbumTracks: string[] = [];
+      
+      // Check albums that might contain tracks by this artist
+      const artistAlbums = savedAlbumsResponse.data.items
+        .filter((item: any) => item.album.artists.some((artist: any) => artist.id === artistId));
+      
+      for (const albumItem of artistAlbums) {
+        const album = albumItem.album;
+        // Add tracks from these albums
+        album.tracks.items.forEach((track: any) => {
+          if (track.artists.some((artist: any) => artist.id === artistId)) {
+            savedAlbumTracks.push(track.id);
+          }
+        });
+      }
       
       // Combine all tracks (removing duplicates)
-      const playedTrackIds = [...new Set([...recentTracks, ...topTracks])];
+      const playedTrackIds = [...new Set([...recentTracks, ...topTracks, ...savedTracks, ...savedAlbumTracks])];
       
       res.json(playedTrackIds);
     } catch (error) {

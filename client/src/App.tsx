@@ -15,6 +15,7 @@ import ReplayGenerator from "@/pages/ReplayGenerator";
 import NotFound from "@/pages/not-found";
 import GenrePlaylistGenerator from "@/pages/GenrePlaylistGenerator";
 import MoodPlaylistGenerator from "@/pages/MoodPlaylistGenerator";
+import ArtistPlaylistGenerator from "@/pages/ArtistPlaylistGenerator";
 import SearchPage from "@/pages/SearchPage";
 import ArtistDetailPage from "@/pages/ArtistDetailPage";
 
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/artist-explorer" component={ArtistExplorer} />
       <Route path="/create-playlist/genre" component={GenrePlaylistGenerator} />
       <Route path="/create-playlist/mood" component={MoodPlaylistGenerator} />
+      <Route path="/create-playlist/artist" component={ArtistPlaylistGenerator} />
       <Route path="/mood-creator" component={MoodCreator} />
       <Route path="/must-listen" component={MustListen} />
       <Route path="/replay-generator" component={ReplayGenerator} />

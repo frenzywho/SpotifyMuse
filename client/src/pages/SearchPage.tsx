@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Search as SearchIcon, Music as MusicIcon, User as UserIcon, Loader2 } from 'lucide-react';
+import { useLocation, useRoute, Link } from 'wouter';
+import { Search as SearchIcon, Loader2, Music, Disc3, User, Headphones } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/queryClient';
 import { SpotifyTrack } from '@/lib/spotify';
 
@@ -28,332 +27,364 @@ interface SearchResults {
 }
 
 export default function SearchPage() {
-  const [location, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [, navigate] = useLocation();
+  const [, params] = useRoute('/search');
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialQuery = urlParams.get('q') || '';
+  
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [activeTab, setActiveTab] = useState('all');
-  const [isSearching, setIsSearching] = useState(false);
-
-  // Extract search query from URL if present
+  
+  // Function to extract query from URL
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get('q');
-    if (q) {
-      setSearchQuery(q);
+    const query = urlParams.get('q');
+    if (query) {
+      setSearchQuery(query);
     }
-  }, [location]);
-
-  // Search query with debounce
-  const {
-    data: searchResults,
-    isLoading,
-    error,
-    refetch
+  }, [window.location.search]);
+  
+  // Perform search when query param changes
+  const { 
+    data: searchResults, 
+    isLoading 
   } = useQuery<SearchResults>({
     queryKey: ['/api/spotify/search', searchQuery, activeTab],
     queryFn: async () => {
-      if (!searchQuery || searchQuery.trim() === '') return { tracks: { items: [], total: 0 }, artists: { items: [], total: 0 }, albums: { items: [], total: 0 } };
+      if (!searchQuery.trim()) return {};
       
-      const types = activeTab === 'all' ? 'track,artist,album' : activeTab;
+      let types = 'track,artist,album';
+      if (activeTab === 'tracks') types = 'track';
+      if (activeTab === 'artists') types = 'artist';
+      if (activeTab === 'albums') types = 'album';
+      
       const response = await apiRequest('GET', `/api/spotify/search?q=${encodeURIComponent(searchQuery)}&type=${types}&limit=20`);
-      return await response.json();
+      return response.json();
     },
-    enabled: !!searchQuery && searchQuery.trim().length > 0,
+    enabled: !!searchQuery.trim(),
   });
-
-  const handleSearch = async (e: React.FormEvent) => {
+  
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery || searchQuery.trim() === '') {
-      toast({
-        title: "Search query required",
-        description: "Please enter an artist, song, or album name to search",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      // Update the URL without triggering a navigation
-      const url = new URL(window.location.href);
-      url.searchParams.set('q', searchQuery);
-      window.history.pushState({}, '', url.toString());
-      
-      await refetch();
-    } catch (error) {
-      console.error("Search error:", error);
-      toast({
-        title: "Search failed",
-        description: "Failed to fetch search results. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSearching(false);
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
   };
-
+  
   const formatDuration = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-
-  const getArtistImage = (artist: any) => {
-    return artist.images && artist.images.length > 0
-      ? artist.images[0].url
-      : 'https://via.placeholder.com/150?text=No+Image';
-  };
-
-  const getAlbumImage = (album: any) => {
-    return album.images && album.images.length > 0
-      ? album.images[0].url
-      : 'https://via.placeholder.com/150?text=No+Image';
-  };
-
+  
   return (
-    <div className="container max-w-7xl mx-auto py-6 space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">Advanced Search</h1>
-      <p className="text-muted-foreground">
-        Search for any artist, track, or album on Spotify
-      </p>
-
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <Input
-          type="text"
-          placeholder="Search for artists, songs, or albums"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1"
-        />
-        <Button type="submit" disabled={isSearching}>
-          {isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
-          Search
-        </Button>
-      </form>
-
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight mb-6">Search</h1>
+        
+        <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto mb-8">
+          <Input
+            type="text"
+            placeholder="Search for songs, artists, or albums..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-12 py-6 text-lg"
+          />
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+          <Button 
+            type="submit" 
+            className="absolute right-2 top-1/2 -translate-y-1/2"
+          >
+            Search
+          </Button>
+        </form>
+      </div>
+      
       {searchQuery && (
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs 
+          defaultValue="all" 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="space-y-4"
+        >
+          <TabsList className="grid grid-cols-4 w-full max-w-md mx-auto">
             <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="track">Tracks</TabsTrigger>
-            <TabsTrigger value="artist">Artists</TabsTrigger>
+            <TabsTrigger value="tracks">Tracks</TabsTrigger>
+            <TabsTrigger value="artists">Artists</TabsTrigger>
+            <TabsTrigger value="albums">Albums</TabsTrigger>
           </TabsList>
-
+          
           {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          ) : error ? (
-            <div className="py-8 text-center">
-              <p className="text-red-500">Error fetching search results</p>
-              <Button variant="outline" onClick={() => refetch()} className="mt-4">
-                Try Again
-              </Button>
+          ) : !searchResults || (
+              !searchResults.tracks?.items?.length && 
+              !searchResults.artists?.items?.length && 
+              !searchResults.albums?.items?.length
+            ) ? (
+            <div className="text-center py-12">
+              <SearchIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-xl font-medium mb-2">No results found</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                We couldn't find anything matching "{searchQuery}". Try different keywords or check for typos.
+              </p>
             </div>
           ) : (
             <>
               <TabsContent value="all" className="space-y-8">
                 {/* Tracks Section */}
-                {searchResults?.tracks && searchResults.tracks.items.length > 0 && (
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-semibold flex items-center">
-                        <MusicIcon className="mr-2 h-5 w-5" /> Tracks
-                      </h2>
-                      <Button variant="link" onClick={() => setActiveTab('track')}>
-                        View all {searchResults.tracks.total} results
-                      </Button>
+                {searchResults.tracks?.items?.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold">Tracks</h2>
+                      {searchResults.tracks.total > searchResults.tracks.items.length && (
+                        <Button 
+                          variant="link" 
+                          onClick={() => setActiveTab('tracks')}
+                          className="text-primary"
+                        >
+                          View all {searchResults.tracks.total} tracks
+                        </Button>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {searchResults.tracks.items.slice(0, 6).map((track) => (
-                        <Card key={track.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                          <div className="flex h-full">
+                    
+                    <div className="grid grid-cols-1 gap-2">
+                      {searchResults.tracks.items.slice(0, 5).map((track) => (
+                        <div 
+                          key={track.id} 
+                          className="flex items-center p-3 rounded-md hover:bg-accent cursor-pointer"
+                        >
+                          <div className="h-12 w-12 mr-4">
                             <img
-                              src={track.album.images[0]?.url || 'https://via.placeholder.com/80'}
-                              alt={track.name}
-                              className="h-[80px] w-[80px] object-cover"
+                              src={track.album.images[0]?.url || 'https://via.placeholder.com/48'}
+                              alt={track.album.name}
+                              className="h-full w-full object-cover rounded-md"
                             />
-                            <div className="flex flex-col justify-between p-4 flex-1">
-                              <div>
-                                <h3 className="font-medium truncate">{track.name}</h3>
-                                <p className="text-sm text-muted-foreground truncate">
-                                  {track.artists.map(a => a.name).join(', ')}
-                                </p>
-                              </div>
-                              <div className="flex justify-between items-center mt-2">
-                                <span className="text-xs text-muted-foreground">{formatDuration(track.duration_ms)}</span>
-                                <a
-                                  href={track.uri}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  Play on Spotify
-                                </a>
-                              </div>
-                            </div>
                           </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Artists Section */}
-                {searchResults?.artists && searchResults.artists.items.length > 0 && (
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-semibold flex items-center">
-                        <UserIcon className="mr-2 h-5 w-5" /> Artists
-                      </h2>
-                      <Button variant="link" onClick={() => setActiveTab('artist')}>
-                        View all {searchResults.artists.total} results
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                      {searchResults.artists.items.slice(0, 6).map((artist) => (
-                        <Card key={artist.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                          <div className="flex flex-col items-center p-4">
-                            <div className="w-full aspect-square mb-3 rounded-full overflow-hidden">
-                              <img
-                                src={getArtistImage(artist)}
-                                alt={artist.name}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <h3 className="font-medium text-center truncate w-full">{artist.name}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {artist.followers?.total?.toLocaleString() || 0} followers
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium truncate">{track.name}</h4>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {track.artists.map(a => a.name).join(', ')}
                             </p>
-                            <Button 
-                              variant="link" 
-                              className="p-0 h-auto mt-2"
-                              onClick={() => setLocation(`/artists/${artist.id}`)}
-                            >
-                              View Profile
-                            </Button>
                           </div>
+                          <div className="text-sm text-muted-foreground ml-4">
+                            {formatDuration(track.duration_ms)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Artists Section */}
+                {searchResults.artists?.items?.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold">Artists</h2>
+                      {searchResults.artists.total > searchResults.artists.items.length && (
+                        <Button 
+                          variant="link" 
+                          onClick={() => setActiveTab('artists')}
+                          className="text-primary"
+                        >
+                          View all {searchResults.artists.total} artists
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {searchResults.artists.items.slice(0, 5).map((artist) => (
+                        <Link key={artist.id} href={`/artist/${artist.id}`}>
+                          <Card className="h-full hover:shadow-md cursor-pointer transition-all overflow-hidden">
+                            <div className="aspect-square overflow-hidden bg-gradient-to-br from-neutral-800 to-neutral-900">
+                              <img
+                                src={artist.images?.[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                                alt={artist.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <CardContent className="p-4">
+                              <h3 className="font-semibold truncate">{artist.name}</h3>
+                              <p className="text-xs text-muted-foreground">Artist</p>
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Albums Section */}
+                {searchResults.albums?.items?.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold">Albums</h2>
+                      {searchResults.albums.total > searchResults.albums.items.length && (
+                        <Button 
+                          variant="link" 
+                          onClick={() => setActiveTab('albums')}
+                          className="text-primary"
+                        >
+                          View all {searchResults.albums.total} albums
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {searchResults.albums.items.slice(0, 5).map((album) => (
+                        <Card key={album.id} className="h-full hover:shadow-md cursor-pointer transition-all overflow-hidden">
+                          <div className="aspect-square overflow-hidden">
+                            <img
+                              src={album.images?.[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                              alt={album.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold truncate">{album.name}</h3>
+                            <p className="text-xs text-muted-foreground truncate">{album.artists.map((a: any) => a.name).join(', ')}</p>
+                          </CardContent>
                         </Card>
                       ))}
                     </div>
                   </div>
                 )}
               </TabsContent>
-
-              <TabsContent value="track">
-                {searchResults?.tracks && (
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold flex items-center">
-                      <MusicIcon className="mr-2 h-5 w-5" /> Tracks
-                      <Badge className="ml-3">{searchResults.tracks.total} results</Badge>
-                    </h2>
-                    
-                    <ScrollArea className="h-[600px] rounded-md border">
-                      <div className="p-4 space-y-4">
-                        {searchResults.tracks.items.map((track) => (
-                          <Card key={track.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                            <div className="flex">
-                              <img
-                                src={track.album.images[0]?.url || 'https://via.placeholder.com/80'}
-                                alt={track.name}
-                                className="h-[80px] w-[80px] object-cover"
-                              />
-                              <div className="flex flex-col justify-between p-4 flex-1">
-                                <div>
-                                  <h3 className="font-medium">{track.name}</h3>
-                                  <p className="text-sm text-muted-foreground">
-                                    {track.artists.map(a => a.name).join(', ')}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Album: {track.album.name}
-                                  </p>
-                                </div>
-                                <div className="flex justify-between items-center mt-2">
-                                  <span className="text-xs">{formatDuration(track.duration_ms)}</span>
-                                  <div className="flex space-x-2">
-                                    <Button size="sm" variant="outline" onClick={() => {
-                                      // Create a playlist with this track
-                                      // TO DO: Implement this functionality
-                                      toast({
-                                        title: "Feature coming soon",
-                                        description: "Adding tracks to playlists will be available soon!",
-                                      });
-                                    }}>
-                                      Add to Playlist
-                                    </Button>
-                                    <a
-                                      href={track.uri}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <Button size="sm">
-                                        Play on Spotify
-                                      </Button>
-                                    </a>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    </ScrollArea>
+              
+              <TabsContent value="tracks">
+                {searchResults.tracks?.items?.length > 0 ? (
+                  <ScrollArea className="h-[700px]">
+                    <div className="space-y-2">
+                      {searchResults.tracks.items.map((track) => (
+                        <div 
+                          key={track.id} 
+                          className="flex items-center p-3 rounded-md hover:bg-accent cursor-pointer"
+                        >
+                          <div className="h-12 w-12 mr-4">
+                            <img
+                              src={track.album.images[0]?.url || 'https://via.placeholder.com/48'}
+                              alt={track.album.name}
+                              className="h-full w-full object-cover rounded-md"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium truncate">{track.name}</h4>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {track.artists.map(a => a.name).join(', ')} • {track.album.name}
+                            </p>
+                          </div>
+                          <div className="text-sm text-muted-foreground ml-4">
+                            {formatDuration(track.duration_ms)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-12">
+                    <Music className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-medium mb-2">No tracks found</h3>
+                    <p className="text-muted-foreground">Try a different search term</p>
                   </div>
                 )}
               </TabsContent>
-
-              <TabsContent value="artist">
-                {searchResults?.artists && (
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold flex items-center">
-                      <UserIcon className="mr-2 h-5 w-5" /> Artists
-                      <Badge className="ml-3">{searchResults.artists.total} results</Badge>
-                    </h2>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                      {searchResults.artists.items.map((artist) => (
-                        <Card key={artist.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                          <CardHeader className="p-0">
-                            <div className="w-full aspect-square">
-                              <img
-                                src={getArtistImage(artist)}
-                                alt={artist.name}
-                                className="h-full w-full object-cover"
-                              />
+              
+              <TabsContent value="artists">
+                {searchResults.artists?.items?.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {searchResults.artists.items.map((artist) => (
+                      <Link key={artist.id} href={`/artist/${artist.id}`}>
+                        <Card className="h-full hover:shadow-md cursor-pointer transition-all overflow-hidden">
+                          <div className="aspect-square overflow-hidden bg-gradient-to-br from-neutral-800 to-neutral-900">
+                            <img
+                              src={artist.images?.[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                              alt={artist.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold truncate">{artist.name}</h3>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {artist.genres?.slice(0, 2).map((genre: string) => (
+                                <Badge key={genre} variant="secondary" className="text-xs">
+                                  {genre}
+                                </Badge>
+                              ))}
                             </div>
-                          </CardHeader>
-                          <CardContent className="p-6">
-                            <CardTitle className="text-xl mb-2">{artist.name}</CardTitle>
-                            <CardDescription>
-                              <div className="flex flex-wrap gap-1 mb-3">
-                                {artist.genres?.slice(0, 3).map((genre: string) => (
-                                  <Badge key={genre} variant="secondary" className="capitalize">
-                                    {genre}
-                                  </Badge>
-                                ))}
-                              </div>
-                              <p className="text-sm">
-                                {artist.followers?.total?.toLocaleString() || 0} followers
-                              </p>
-                            </CardDescription>
                           </CardContent>
-                          <CardFooter className="pb-6 pt-0">
-                            <Button 
-                              className="w-full"
-                              onClick={() => setLocation(`/artist/${artist.id}`)}
-                            >
-                              Explore Artist
-                            </Button>
+                          <CardFooter className="pt-0 pb-3 px-4">
+                            <div className="text-xs text-muted-foreground">
+                              {artist.followers?.total?.toLocaleString()} followers
+                            </div>
                           </CardFooter>
                         </Card>
-                      ))}
-                    </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-medium mb-2">No artists found</h3>
+                    <p className="text-muted-foreground">Try a different search term</p>
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="albums">
+                {searchResults.albums?.items?.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {searchResults.albums.items.map((album) => (
+                      <Card key={album.id} className="h-full hover:shadow-md cursor-pointer transition-all overflow-hidden">
+                        <div className="aspect-square overflow-hidden">
+                          <img
+                            src={album.images?.[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                            alt={album.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold truncate">{album.name}</h3>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {album.artists.map((a: any) => a.name).join(', ')}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {album.release_date?.slice(0, 4)} • {album.total_tracks} tracks
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Disc3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-medium mb-2">No albums found</h3>
+                    <p className="text-muted-foreground">Try a different search term</p>
                   </div>
                 )}
               </TabsContent>
             </>
           )}
         </Tabs>
+      )}
+      
+      {!searchQuery && (
+        <div className="text-center py-12">
+          <Headphones className="h-16 w-16 mx-auto text-muted-foreground mb-6" />
+          <h2 className="text-2xl font-semibold mb-3">Start searching for music</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto mb-8">
+            Look up artists, songs, albums, or even genres to discover new music and create personalized playlists.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto">
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('pop')}>Pop</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('rock')}>Rock</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('hip hop')}>Hip Hop</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('country')}>Country</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('edm')}>Electronic</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('jazz')}>Jazz</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('r&b')}>R&B</Badge>
+            <Badge className="cursor-pointer hover:bg-primary px-3 py-1.5" onClick={() => setSearchQuery('classical')}>Classical</Badge>
+          </div>
+        </div>
       )}
     </div>
   );

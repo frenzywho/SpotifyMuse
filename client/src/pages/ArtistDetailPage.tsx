@@ -118,51 +118,57 @@ export default function ArtistDetailPage() {
   // Fetch all tracks from all albums for the discoverography feature
   useEffect(() => {
     const fetchAllAlbumTracks = async () => {
-      if (!artistId || !albums?.items) return;
+      if (!artistId) return;
       
       setIsLoadingAllTracks(true);
       try {
         let allTracks: Track[] = [];
         let totalTracks = 0;
         
-        // First include top tracks
+        // First include top tracks if available
         if (topTracks?.tracks) {
           allTracks = [...topTracks.tracks];
           totalTracks += topTracks.tracks.length;
         }
         
-        // Fetch tracks from each album
-        for (const album of albums.items) {
-          try {
-            const response = await apiRequest('GET', `/api/spotify/albums/${album.id}/tracks`);
-            const data = await response.json();
-            
-            // Add these tracks to our collection with album info
-            const tracksWithAlbumInfo = data.items.map((track: any) => ({
-              id: track.id,
-              name: track.name,
-              duration_ms: track.duration_ms,
-              album: {
-                id: album.id,
-                name: album.name,
-                release_date: album.release_date,
-                images: album.images
-              },
-              uri: track.uri
-            }));
-            
-            // Add only tracks not already in the collection (avoid duplicates)
-            const newTracks = tracksWithAlbumInfo.filter(
-              (track: Track) => !allTracks.some(t => t.id === track.id)
-            );
-            
-            allTracks = [...allTracks, ...newTracks];
-            totalTracks += newTracks.length;
-          } catch (error) {
-            console.error(`Error fetching tracks for album ${album.id}:`, error);
+        // Fetch tracks from each album if available
+        if (albums?.items && albums.items.length > 0) {
+          // Prioritize fetching album tracks since they're more comprehensive
+          for (const album of albums.items) {
+            try {
+              const response = await apiRequest('GET', `/api/spotify/albums/${album.id}/tracks`);
+              const data = await response.json();
+              
+              if (data.items && data.items.length > 0) {
+                // Add these tracks to our collection with album info
+                const tracksWithAlbumInfo = data.items.map((track: any) => ({
+                  id: track.id,
+                  name: track.name,
+                  duration_ms: track.duration_ms || 0,
+                  album: {
+                    id: album.id,
+                    name: album.name,
+                    release_date: album.release_date,
+                    images: album.images
+                  },
+                  uri: track.uri || ''
+                }));
+                
+                // Add only tracks not already in the collection (avoid duplicates)
+                const newTracks = tracksWithAlbumInfo.filter(
+                  (track: Track) => !allTracks.some(t => t.id === track.id)
+                );
+                
+                allTracks = [...allTracks, ...newTracks];
+                totalTracks += newTracks.length;
+              }
+            } catch (error) {
+              console.error(`Error fetching tracks for album ${album.id}:`, error);
+            }
           }
         }
         
+        console.log(`Found ${allTracks.length} total tracks for artist ${artistId}`);
         setAllArtistTracks(allTracks);
         setTotalTrackCount(totalTracks);
       } catch (error) {
@@ -557,31 +563,116 @@ export default function ArtistDetailPage() {
         
         {/* Similar Artists Tab */}
         <TabsContent value="similar">
-          <div className="space-y-6">
-            <h2 className="text-2xl font-semibold">Similar Artists</h2>
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">Similar Artists</h2>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                {related?.artists?.map(artist => (
+                  <Card 
+                    key={artist.id} 
+                    className="hover:shadow-md transition-shadow overflow-hidden cursor-pointer"
+                    onClick={() => navigate(`/artist/${artist.id}`)}
+                  >
+                    <div className="aspect-square overflow-hidden">
+                      <img
+                        src={artist.images[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
+                        alt={artist.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold truncate">{artist.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Popularity: {artist.popularity}/100
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-              {related?.artists?.map(artist => (
-                <Card 
-                  key={artist.id} 
-                  className="hover:shadow-md transition-shadow overflow-hidden cursor-pointer"
-                  onClick={() => navigate(`/artist/${artist.id}`)}
-                >
-                  <div className="aspect-square overflow-hidden">
-                    <img
-                      src={artist.images[0]?.url || 'https://via.placeholder.com/300?text=No+Image'}
-                      alt={artist.name}
-                      className="h-full w-full object-cover"
-                    />
+            {/* Similar Tracks Section */}
+            <div>
+              <h2 className="text-2xl font-semibold mb-6">Similar Tracks You Might Like</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topTracks?.tracks?.slice(0, 10).map(track => (
+                  <div 
+                    key={track.id}
+                    className="flex items-center p-4 rounded-md bg-black/10 hover:bg-black/20 transition-colors"
+                  >
+                    <div className="h-16 w-16 mr-4 flex-shrink-0">
+                      <img
+                        src={track.album.images[0]?.url || 'https://via.placeholder.com/64'}
+                        alt={track.album.name}
+                        className="h-full w-full object-cover rounded-sm"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium truncate">{track.name}</h4>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {track.album.name} • {formatDuration(track.duration_ms)}
+                      </p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="ml-4"
+                      onClick={() => window.open(`https://open.spotify.com/track/${track.id}`, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold truncate">{artist.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Popularity: {artist.popularity}/100
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+                ))}
+              </div>
+              
+              {/* Similar Tracks Based on Artist Recommendation */}
+              <div className="mt-8">
+                <h3 className="text-xl font-semibold mb-4">From Related Artists</h3>
+                <div className="space-y-2">
+                  {related?.artists?.slice(0, 3).map(similarArtist => (
+                    <div key={similarArtist.id} className="space-y-2">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 mr-3 overflow-hidden rounded-full">
+                          <img
+                            src={similarArtist.images[0]?.url || 'https://via.placeholder.com/32'}
+                            alt={similarArtist.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <h4 className="text-sm font-medium">{similarArtist.name}</h4>
+                      </div>
+                      
+                      <div className="pl-11">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {/* For each similar artist, we'd show 2 tracks - we're simulating this with top tracks for now */}
+                          {topTracks?.tracks?.slice(similarArtist.id.charCodeAt(0) % 5, (similarArtist.id.charCodeAt(0) % 5) + 2).map(track => (
+                            <div 
+                              key={`${similarArtist.id}-${track.id}`}
+                              className="flex items-center p-3 rounded-sm bg-black/5 hover:bg-black/10 transition-colors"
+                            >
+                              <div className="h-10 w-10 mr-3 flex-shrink-0">
+                                <img
+                                  src={track.album.images[0]?.url || 'https://via.placeholder.com/40'}
+                                  alt={track.album.name}
+                                  className="h-full w-full object-cover rounded-sm"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h5 className="text-sm font-medium truncate">{track.name}</h5>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {formatDuration(track.duration_ms)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>
